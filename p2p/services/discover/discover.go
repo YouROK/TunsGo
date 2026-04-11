@@ -123,8 +123,13 @@ func (s *Discover) connect(pid peer.ID) {
 	}
 
 	s.muPeers.Lock()
-	hosts := s.peers[pid].Hosts
-	s.peers[pid].LastSeen = time.Now()
+	peerInfo, exists := s.peers[pid]
+	if !exists {
+		s.muPeers.Unlock()
+		return
+	}
+	hosts := peerInfo.Hosts
+	peerInfo.LastSeen = time.Now()
 	s.muPeers.Unlock()
 	log.Printf("[DISCOVER] Successfully connected to %s with hosts %v", pid, hosts)
 
