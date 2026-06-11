@@ -123,17 +123,17 @@ func (s *Discover) connect(pid peer.ID) {
 	}
 
 	s.muPeers.Lock()
-	peerInfo, exists := s.peers[pid]
-	if !exists {
+	if _, ok := s.peers[pid]; !ok {
 		s.muPeers.Unlock()
 		return
 	}
-	hosts := peerInfo.Hosts
-	peerInfo.LastSeen = time.Now()
+	hosts := s.peers[pid].Hosts
+	s.peers[pid].LastSeen = time.Now()
 	s.muPeers.Unlock()
 	log.Printf("[DISCOVER] Successfully connected to %s with hosts %v", pid, hosts)
 
 	s.host.ConnManager().UpsertTag(pid, "tuns-node", func(current int) int {
 		return 100
 	})
+	s.host.ConnManager().Protect(pid, "tuns-node")
 }
