@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/YouROK/tunsgo/opts"
+	"github.com/YouROK/tunsgo/p2p/consts"
 	"github.com/YouROK/tunsgo/p2p/models"
 	"github.com/YouROK/tunsgo/p2p/services"
 	"github.com/YouROK/tunsgo/p2p/services/discover"
@@ -26,8 +27,6 @@ import (
 	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multihash"
 )
-
-const Rendezvous = "tunsgo-peers-0009"
 
 type P2PServer struct {
 	host host.Host
@@ -119,7 +118,7 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 		MhType:   multihash.SHA2_256,
 		MhLength: -1,
 	}
-	c, _ := pref.Sum([]byte(Rendezvous))
+	c, _ := pref.Sum([]byte(consts.Rendezvous))
 
 	srv := &P2PServer{
 		host:  h,
