@@ -85,6 +85,7 @@ func (p *UrlProxy) GinHandler(c *gin.Context) {
 				if current > 10 {
 					return current - 10
 				}
+				p.host.ConnManager().Unprotect(pID, "tuns-node")
 				return 0
 			})
 			if resp != nil && resp.Body != nil {
@@ -103,6 +104,7 @@ func (p *UrlProxy) GinHandler(c *gin.Context) {
 		io.Copy(c.Writer, resp.Body)
 		resp.Body.Close()
 		p.host.ConnManager().UpsertTag(pID, "tuns-node", func(current int) int {
+			p.host.ConnManager().Protect(pID, "tuns-node")
 			return 100
 		})
 		return
