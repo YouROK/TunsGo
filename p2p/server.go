@@ -82,19 +82,38 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 		relayResources.Limit.Data = 1 << 21 //2 mb
 	}
 
+	pref := cid.Prefix{
+		Version:  1,
+		Codec:    cid.Raw,
+		MhType:   multihash.SHA2_256,
+		MhLength: -1,
+	}
+	c, _ := pref.Sum([]byte(consts.Rendezvous))
+
+	var idht *dht.IpfsDHT
+	peerSource := func(ctx context.Context, num int) <-chan peer.AddrInfo {
+		if idht == nil {
+			ch := make(chan peer.AddrInfo)
+			close(ch)
+			return ch
+		}
+		return idht.FindProvidersAsync(ctx, c, num)
+	}
+
 	optsLp2p := []libp2p.Option{
 		libp2p.Identity(key),
-		libp2p.ChainOptions(libp2p.DefaultPrivateTransports),
+		libp2p.DefaultTransports,
 		libp2p.Security(tls.ID, tls.New),
 		libp2p.ListenAddrStrings(
 			"/ip4/0.0.0.0/tcp/0",
+			"/ip4/0.0.0.0/udp/0/quic-v1",
 		),
 		libp2p.ConnectionManager(cm),
 		libp2p.NATPortMap(),
 
 		libp2p.EnableRelay(),
 		libp2p.EnableRelayService(relay.WithResources(relayResources)),
-		libp2p.EnableAutoRelayWithStaticRelays(nil),
+		libp2p.EnableAutoRelayWithPeerSource(peerSource),
 		libp2p.EnableNATService(),
 		libp2p.EnableHolePunching(),
 	}
@@ -106,19 +125,11 @@ func NewP2PServer(opts *opts.Options) (*P2PServer, error) {
 	}
 	log.Println("[P2P] ID", h.ID().String())
 
-	idht, err := dht.New(ctx, h, dht.Mode(dht.ModeAuto))
+	idht, err = dht.New(ctx, h, dht.Mode(dht.ModeAuto))
 	if err != nil {
 		cm.Close()
 		return nil, err
 	}
-
-	pref := cid.Prefix{
-		Version:  1,
-		Codec:    cid.Raw,
-		MhType:   multihash.SHA2_256,
-		MhLength: -1,
-	}
-	c, _ := pref.Sum([]byte(consts.Rendezvous))
 
 	srv := &P2PServer{
 		host:  h,
