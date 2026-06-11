@@ -28,6 +28,8 @@ type P2PStatus struct {
 	Peers          []*PeerDetail       `json:"peers_list"`
 	ConnectedPeers []*PeerDetail       `json:"connected_peers_list"`
 	OurPeers       []*models.PeerInfo  `json:"our_peers_list"`
+	Peerstore      []*PeerDetail       `json:"peerstore_list"`
+	OurPeerstore   []*PeerDetail       `json:"our_peerstore_list"`
 }
 
 func (s *P2PServer) Status() *P2PStatus {
@@ -49,6 +51,32 @@ func (s *P2PServer) Status() *P2PStatus {
 
 	for _, info := range peers {
 		status.OurPeers = append(status.OurPeers, info)
+	}
+
+	peerstore := s.host.Peerstore().Peers()
+	for _, pID := range peerstore {
+		protocols, _ := s.host.Peerstore().GetProtocols(pID)
+		var protocolsString []string
+		isOurNode := false
+		for _, proto := range protocols {
+			protocolsString = append(protocolsString, string(proto))
+			if strings.HasPrefix(string(proto), "/tunsgo/") {
+				isOurNode = true
+			}
+		}
+		detail := &PeerDetail{
+			ID:        pID.String(),
+			IsTuns:    isOurNode,
+			Protocols: protocolsString,
+		}
+
+		for _, a := range s.host.Peerstore().Addrs(pID) {
+			detail.Addrs = append(detail.Addrs, a.String())
+		}
+		status.Peerstore = append(status.Peerstore, detail)
+		if isOurNode {
+			status.OurPeerstore = append(status.OurPeerstore, detail)
+		}
 	}
 
 	connectedPeers := s.host.Network().Peers()
