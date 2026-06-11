@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
+	"github.com/multiformats/go-multiaddr"
 )
 
 type HostPex struct {
@@ -69,7 +70,7 @@ func (p *HostPex) Name() string {
 }
 
 func (p *HostPex) ProtocolID() protocol.ID {
-	return "/tunsgo/hostpex/1.0.0"
+	return "/tunsgo/hostpex/1.0.1"
 }
 
 func (p *HostPex) HandleStream(stream network.Stream) {
@@ -91,19 +92,43 @@ func (p *HostPex) collectPeersForReply(remote peer.ID) []*models.PeerInfo {
 
 	tmp := make([]*models.PeerInfo, 0, len(p.peers)+1)
 
+	myAddrs := []string{}
+	for _, addr := range p.host.Addrs() {
+		myAddrs = append(myAddrs, addr.String())
+	}
+
 	if len(p.opts.Hosts) > 0 {
 		tmp = append(tmp, &models.PeerInfo{
 			PeerID:   p.host.ID().String(),
+			Addrs:    myAddrs,
 			Hosts:    p.opts.Hosts,
 			LastSeen: time.Now(),
 		})
 	}
 
 	for pid, info := range p.peers {
-		if pid == remote || len(info.Hosts) == 0 {
+		if pid == remote {
 			continue
 		}
-		tmp = append(tmp, info)
+
+		peerCopy := &models.PeerInfo{
+			PeerID:    info.PeerID,
+			Hosts:     info.Hosts,
+			Timestamp: info.Timestamp,
+			LastSeen:  info.LastSeen,
+			Addrs:     info.Addrs,
+		}
+
+		if len(peerCopy.Addrs) == 0 {
+			psAddrs := p.host.Peerstore().Addrs(pid)
+			for _, a := range psAddrs {
+				peerCopy.Addrs = append(peerCopy.Addrs, a.String())
+			}
+		}
+
+		if len(peerCopy.Addrs) > 0 {
+			tmp = append(tmp, peerCopy)
+		}
 	}
 
 	if len(tmp) == 0 {
@@ -118,6 +143,7 @@ func (p *HostPex) collectPeersForReply(remote peer.ID) []*models.PeerInfo {
 	if len(tmp) < limit {
 		limit = len(tmp)
 	}
+
 	return tmp[:limit]
 }
 
@@ -194,6 +220,23 @@ func (p *HostPex) addPeer(info *models.PeerInfo) {
 	pid, err := peer.Decode(info.PeerID)
 	if err != nil || pid == p.host.ID() {
 		return
+	}
+
+	if len(info.Addrs) == 0 {
+		log.Printf("[HOSTPEX] Skipping old node %s (no addrs)", pid)
+		return
+	} else {
+		log.Println("[HOSTPEX] Adding new peer ", pid, info.Addrs)
+	}
+
+	if len(info.Addrs) > 0 {
+		var mas []multiaddr.Multiaddr
+		for _, s := range info.Addrs {
+			if ma, err := multiaddr.NewMultiaddr(s); err == nil {
+				mas = append(mas, ma)
+			}
+		}
+		p.host.Peerstore().AddAddrs(pid, mas, time.Hour)
 	}
 
 	p.muPeers.Lock()
