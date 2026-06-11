@@ -93,6 +93,7 @@ func (s *P2PServer) discoveryPeers() {
 			if s.host.Network().Connectedness(p.ID) != network.Connected {
 				err := s.host.Connect(s.ctx, p)
 				if err == nil {
+					s.host.ConnManager().Protect(p.ID, "tuns-node")
 					s.host.ConnManager().UpsertTag(p.ID, "tuns-node", func(current int) int {
 						return 100
 					})
